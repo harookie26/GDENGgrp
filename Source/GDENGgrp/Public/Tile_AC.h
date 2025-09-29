@@ -2,10 +2,18 @@
 
 #pragma once
 
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "Components/StaticMeshComponent.h"
+// Use 3D text component from the Text3D plugin
+#include "Text3D/Public/Text3DComponent.h"
+#include "Math/UnrealMathUtility.h"
+
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Tile_AC.generated.h"
 
+class UText3DComponent;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class GDENGGRP_API UTile_AC : public UActorComponent
@@ -32,6 +40,10 @@ public:
 	UPROPERTY(EditAnywhere, Category="Grid")
 	int32 GridSizeY = 4;
 
+	// Number of mines placed on the map
+	UPROPERTY(EditAnywhere, Category="Grid")
+	int32 NumMines = 4;
+
 	// Distance between spawned actor centers (minimum)
 	UPROPERTY(EditAnywhere, Category="Grid")
 	float Spacing = 200.f;
@@ -48,5 +60,10 @@ public:
 	// If true, BeginPlay will only spawn when owner has SpawnOriginTag
 	UPROPERTY(EditAnywhere, Category="Grid")
 	bool bOnlySpawnIfOwnerHasTag = true;
-		
+
+	// Reference to the Text3D component on the actor (assign in Blueprint or by dragging in editor).
+	// Marked Instanced so you can assign the actor's subobject instance directly.
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Grid", meta = (AllowPrivateAccess = "true"))
+	UText3DComponent* Text3DComp = nullptr;
+
 };
