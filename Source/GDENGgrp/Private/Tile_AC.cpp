@@ -230,7 +230,10 @@ void UTile_AC::BeginPlay()
 						TextComp->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
 					}
 
+					// Ensure text is centered within the tile
 					TextComp->SetMobility(EComponentMobility::Movable);
+					TextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
+					TextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
 					TextComp->SetVisibility(false); // hidden until revealed
 
 					FString Symbol;
@@ -261,6 +264,7 @@ void UTile_AC::BeginPlay()
 					{
 						ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
 					}
+					// Keep X/Y at 0 so centered alignment will position text in the middle of the tile.
 					TextComp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
 					TextComp->SetRelativeScale3D(FVector(TextUniformScale));
 
@@ -313,6 +317,10 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->CreationMethod = EComponentCreationMethod::Instance;
 
+		// Ensure text is centered for this tile
+		Comp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
+		Comp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
+
 		Comp->RegisterComponent();
 		Comp->InitializeComponent();
 	}
@@ -346,6 +354,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 	{
 		ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
 	}
+	// Keep XY zero — alignment above centers the mesh over actor origin.
 	Comp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
 	Comp->SetRelativeScale3D(FVector(InTextUniformScale));
 	Comp->SetVisibility(false); // hide until revealed
@@ -378,6 +387,11 @@ bool UTile_AC::Reveal()
 				if (RuntimeTextComp)
 				{
 					Owner->AddInstanceComponent(RuntimeTextComp);
+
+					// center alignment for any ad-hoc runtime text
+					RuntimeTextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
+					RuntimeTextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
+
 					RuntimeTextComp->RegisterComponent();
 					RuntimeTextComp->InitializeComponent();
 				}
