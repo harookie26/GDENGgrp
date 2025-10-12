@@ -1,7 +1,12 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings..
 
 
 #include "Mechanics_AC.h"
+
+#include "Text3DComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 
 // Sets default values for this component's properties
@@ -50,6 +55,84 @@ void UMechanics_AC::TickComponent(float DeltaTime, ELevelTick TickType, FActorCo
 	// ...
 }
 
+static void SpawnFloatingTextOnOwner(UWorld* World, AActor* Owner, const FString& Text, float Duration = 5.f, float Scale = 0.12f, float ForwardOffset = 300.f)
+{
+	if (!World || !Owner) return;
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	FVector ViewLoc = FVector::ZeroVector;
+	FRotator ViewRot = FRotator::ZeroRotator;
+	if (PC)
+	{
+		PC->GetPlayerViewPoint(ViewLoc, ViewRot);
+	}
+
+	const float UpOffset = 30.f;
+	const FVector DesiredWorldLocation = ViewLoc + ViewRot.Vector() * ForwardOffset + FVector(0.f, 0.f, UpOffset);
+	const FRotator LookAtCameraRot = (ViewLoc - DesiredWorldLocation).Rotation();
+
+	const FRotator FlippedRot = LookAtCameraRot + FRotator(180.f, 180.0f, 180.0f);
+
+	UText3DComponent* TextComp = NewObject<UText3DComponent>(Owner, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
+	if (!TextComp) return;
+
+	Owner->AddInstanceComponent(TextComp);
+	USceneComponent* OwnerRoot = Owner->GetRootComponent();
+	if (!OwnerRoot)
+	{
+		Owner->SetRootComponent(TextComp);
+	}
+	else
+	{
+		TextComp->AttachToComponent(OwnerRoot, FAttachmentTransformRules::KeepWorldTransform);
+	}
+
+	// Configure visual properties
+	TextComp->CreationMethod = EComponentCreationMethod::Instance;
+	TextComp->SetMobility(EComponentMobility::Movable);
+	TextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
+	TextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
+	TextComp->SetText(FText::FromString(Text));
+	TextComp->SetExtrude(8.0f);
+	TextComp->SetBevel(0.0f);
+	TextComp->SetCastShadow(false);
+	TextComp->SetRelativeScale3D(FVector(Scale));
+	TextComp->SetVisibility(true, true);
+
+	// Compute a relative location so the component appears at DesiredWorldLocation while remaining a child of the owner
+	if (OwnerRoot)
+	{
+		const FVector LocalLocation = OwnerRoot->GetComponentTransform().InverseTransformPosition(DesiredWorldLocation);
+		TextComp->SetRelativeLocation(LocalLocation);
+	}
+	else
+	{
+		// No root, set world directly
+		TextComp->SetWorldLocation(DesiredWorldLocation);
+	}
+
+	// Face the camera and apply flip
+	TextComp->SetWorldRotation(FlippedRot);
+
+	// Register the component so it becomes active/rendered immediately
+	TextComp->RegisterComponent();
+	TextComp->InitializeComponent();
+
+	// Schedule destruction of the transient component
+	FTimerDelegate Del = FTimerDelegate::CreateLambda([TextComp]()
+		{
+			if (TextComp)
+			{
+				// Unregister and destroy component
+				TextComp->UnregisterComponent();
+				TextComp->DestroyComponent();
+			}
+		});
+
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, Del, Duration, false);
+}
+
 void UMechanics_AC::RevealUnderPlayer()
 {
 	AActor* Owner = GetOwner();
@@ -83,7 +166,7 @@ void UMechanics_AC::RevealUnderPlayer()
 	{
 		if (GEngine)
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, TEXT("Actor under player is not a tile."));
+			GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::White, TEXT("Actor under player is not a tile."));
 		}
 		return;
 	}
@@ -100,11 +183,8 @@ void UMechanics_AC::RevealUnderPlayer()
 	bool bWasMine = Tile->Reveal();
 	if (bWasMine)
 	{
-		// Player loses immediately
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("You revealed a mine! You lose."));
-		}
+		// Player loses immediately - show 3D text attached to the same pawn
+		SpawnFloatingTextOnOwner(World, Owner, TEXT("You lost!"), 5.f, 0.18f, 400.f);
 
 		// Optionally reveal all mines after loss
 		TArray<UTile_AC*> AllTiles;
@@ -125,6 +205,11 @@ void UMechanics_AC::RevealUnderPlayer()
 		return;
 	}
 
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Tile revealed."));
+	}
+
 	// Check win condition: all non-mine tiles revealed
 	TArray<UTile_AC*> AllTiles;
 	UTile_AC::GetAllTiles(World, AllTiles);
@@ -143,10 +228,8 @@ void UMechanics_AC::RevealUnderPlayer()
 
 	if (TotalNonMine > 0 && RevealedNonMine >= TotalNonMine)
 	{
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("You revealed all safe tiles! You win!"));
-		}
+		// Show 3D win text attached to the owner pawn
+		SpawnFloatingTextOnOwner(World, Owner, TEXT("You win!"), 5.f, 0.18f, 400.f);
 
 		// Disable further input
 		if (Owner->InputComponent)

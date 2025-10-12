@@ -76,13 +76,18 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Tile State")
 	bool bRevealed = false;
 
+	// Explicit flag telling this tile is the special starting tile
+	UPROPERTY(VisibleAnywhere, Category = "Tile State")
+	bool bIsStart = false;
+
 	// Runtime pointer to the text component created to show tile content
 	UPROPERTY()
 	UText3DComponent* RuntimeTextComp = nullptr;
 
 	// Initialize this tile with computed values. Called by the origin spawner.
+	// bInIsStart marks the unique starting tile (shows "-" when revealed).
 	UFUNCTION()
-	void InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTextUniformScale);
+	void InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTextUniformScale, bool bInIsStart = false);
 
 	// Reveal this tile. Returns true if the tile was a mine.
 	UFUNCTION()
