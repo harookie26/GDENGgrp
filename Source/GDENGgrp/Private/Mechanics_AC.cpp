@@ -1,26 +1,16 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Mechanics_AC.h"
 
 
-// Sets default values for this component's properties
 UMechanics_AC::UMechanics_AC()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
 }
 
 
-// Called when the game starts
 void UMechanics_AC::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Try to enable input and bind spacebar for reveal action.
 	AActor* Owner = GetOwner();
 	UWorld* World = GetWorld();
 	if (!Owner || !World)
@@ -34,7 +24,7 @@ void UMechanics_AC::BeginPlay()
 		Owner->EnableInput(PC);
 		if (Owner->InputComponent)
 		{
-			// Bind directly to the spacebar key so we don't rely on project input mappings.
+			//Bind directly to the spacebar key so we don't rely on project input mappings.
 			Owner->InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &UMechanics_AC::RevealUnderPlayer);
 		}
 	}
@@ -42,12 +32,9 @@ void UMechanics_AC::BeginPlay()
 }
 
 
-// Called every frame
 void UMechanics_AC::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
 }
 
 void UMechanics_AC::RevealUnderPlayer()
@@ -56,7 +43,7 @@ void UMechanics_AC::RevealUnderPlayer()
 	UWorld* World = GetWorld();
 	if (!Owner || !World) return;
 
-	// Trace down from the actor's location to find the tile beneath feet.
+	//Trace down from the actor's location to find the tile beneath feet.
 	const FVector Start = Owner->GetActorLocation() + FVector(0, 0, 20.f);
 	const FVector End = Start - FVector(0, 0, 400.f);
 
@@ -117,7 +104,6 @@ void UMechanics_AC::RevealUnderPlayer()
 			}
 		}
 
-		// Disable further input for this owner to lock out play (simple approach)
 		if (Owner->InputComponent)
 		{
 			Owner->InputComponent->ClearActionBindings();

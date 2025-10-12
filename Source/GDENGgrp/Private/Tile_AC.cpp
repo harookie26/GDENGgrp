@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings..
-
-
 #include "Tile_AC.h"
 
 #include "Components/PrimitiveComponent.h"
@@ -11,18 +8,12 @@
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
-// Sets default values for this component's properties
 UTile_AC::UTile_AC()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
 }
 
 
-// Called when the game starts
 void UTile_AC::BeginPlay()
 {
 	Super::BeginPlay();
@@ -33,10 +24,10 @@ void UTile_AC::BeginPlay()
 		return;
 	}
 
-	// Only the origin actor (tagged) should run the spawning + grid setup.
+	//Only the origin actor (tagged) should run the spawning + grid setup.
 	if (bOnlySpawnIfOwnerHasTag && !Owner->ActorHasTag(SpawnOriginTag))
 	{
-		// Non-origin actors do nothing here (origin will set their visuals).
+		//Non-origin actors do nothing here (origin will set their visuals).
 		return;
 	}
 
@@ -52,13 +43,13 @@ void UTile_AC::BeginPlay()
 		return;
 	}
 
-	// Seed randomness
+	//Seed randomness
 	FMath::RandInit(static_cast<int32>(FDateTime::Now().GetMillisecond()));
 
 	const FVector Origin = Owner->GetActorLocation();
 	FRotator SpawnRotation = Owner->GetActorRotation();
 
-	// Determine effective spacing so tiles do not overlap.
+	//Determine effective spacing so tiles do not overlap.
 	float EffectiveSpacingX = Spacing;
 	float EffectiveSpacingY = Spacing;
 
@@ -75,21 +66,21 @@ void UTile_AC::BeginPlay()
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	// Prepare container for all grid actors (owner at 0,0)
+	//(owner at 0,0)
 	const int32 TotalCells = GridSizeX * GridSizeY;
 	TArray<AActor*> GridActors;
 	GridActors.SetNum(TotalCells);
 
-	// Map (X,Y) -> index: Index = X * GridSizeY + Y
+	//Map (X,Y) -> index: Index = X * GridSizeY + Y
 	auto IndexForXY = [&](int32 X, int32 Y) -> int32 { return X * GridSizeY + Y; };
 
-	// Place owner into the grid at (0,0)
+	//Place owner into the grid at (0,0)
 	if (TotalCells > 0)
 	{
 		GridActors[IndexForXY(0, 0)] = Owner;
 	}
 
-	// Spawn remaining cells and fill GridActors
+	//Spawn remaining cells and fill GridActors
 	for (int32 X = 0; X < GridSizeX; ++X)
 	{
 		for (int32 Y = 0; Y < GridSizeY; ++Y)
@@ -107,7 +98,7 @@ void UTile_AC::BeginPlay()
 			}
 			else
 			{
-				// If spawn failed, leave nullptr. Continue — origin will still attempt to render for valid actors.
+				//If spawn failed, leave nullptr. Continue — origin will still attempt to render for valid actors.
 				GridActors[IndexForXY(X, Y)] = nullptr;
 			}
 		}
@@ -119,34 +110,34 @@ void UTile_AC::BeginPlay()
 	// - The starting tile is at (0,0) (the owner) and is designated with "-" (we represent that with AdjacentCount == -2).
 	// - Starting tile must NOT be a mine.
 	//
-	// Ensure we have at least one cell; otherwise nothing to do.
+	// Ensure we have at least one cell, otherwise nothing to do.
 
 	if (TotalCells == 0)
 	{
 		return;
 	}
 
-	// Reserve the origin (0,0) as the starting tile.
+	//Reserve the origin (0,0) as the starting tile.
 	const int32 StartIndex = IndexForXY(0, 0);
 
-	// Determine desired number of mines: exactly 4, but ensure we leave at least one non-mine for the start tile.
+	//Determine desired number of mines: exactly 4, but ensure we leave at least one non-mine for the start tile.
 	int32 DesiredMines = FMath::Clamp(4, 0, TotalCells > 1 ? TotalCells - 1 : 0);
-	// Keep the NumMines member in sync (optional).
+	//Keep the NumMines member in sync (optional).
 	NumMines = DesiredMines;
 
-	// Place DesiredMines unique mines randomly among TotalCells, excluding the starting index.
+	//Place DesiredMines unique mines randomly among TotalCells, excluding the starting index.
 	TSet<int32> MineIndices;
 	while (MineIndices.Num() < DesiredMines)
 	{
 		int32 Pick = FMath::RandRange(0, TotalCells - 1);
 		if (Pick == StartIndex)
 		{
-			continue; // never place a mine on the starting tile
+			continue; //never place a mine on the starting tile
 		}
 		MineIndices.Add(Pick);
 	}
 
-	// Compute adjacent mine counts for each cell
+	//Compute adjacent mine counts for each cell
 	TArray<int32> AdjacentCounts;
 	AdjacentCounts.Init(0, TotalCells);
 
@@ -157,7 +148,7 @@ void UTile_AC::BeginPlay()
 			int32 Idx = IndexForXY(X, Y);
 			if (MineIndices.Contains(Idx))
 			{
-				AdjacentCounts[Idx] = -1; // -1 = mine
+				AdjacentCounts[Idx] = -1; //-1 = mine
 				continue;
 			}
 
@@ -183,15 +174,15 @@ void UTile_AC::BeginPlay()
 		}
 	}
 
-	// Designate the start tile with a special value -2 (dash "-")
+	//Designate the start tile with a special value -2 (dash "-")
 	if (StartIndex >= 0 && StartIndex < TotalCells)
 	{
 		AdjacentCounts[StartIndex] = -2; // -2 = starting tile, displayed as "-"
-		// ensure start tile is not marked as a mine (shouldn't be, since we excluded it above)
+		//ensure start tile is not marked as a mine (shouldn't be, since we excluded it above)
 		MineIndices.Remove(StartIndex);
 	}
 
-	// Initialize each spawned actor's own UTile_AC with its tile data.
+	//Initialize each spawned actor's own UTile_AC with its tile data.
 	for (int32 X = 0; X < GridSizeX; ++X)
 	{
 		for (int32 Y = 0; Y < GridSizeY; ++Y)
@@ -213,8 +204,8 @@ void UTile_AC::BeginPlay()
 			}
 			else
 			{
-				// Fallback: if actor doesn't have a tile component, create a text component directly and hide it initially.
-				// This should be rare because spawned actors should include this component.
+				//Fallback: if actor doesn't have a tile component, create a text component directly and hide it initially.
+				//This should be rare because spawned actors should include this component.
 				UText3DComponent* TextComp = NewObject<UText3DComponent>(CellActor, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
 				if (TextComp)
 				{
@@ -230,11 +221,11 @@ void UTile_AC::BeginPlay()
 						TextComp->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
 					}
 
-					// Ensure text is centered within the tile
+					//Ensure text is centered within the tile
 					TextComp->SetMobility(EComponentMobility::Movable);
 					TextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 					TextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
-					TextComp->SetVisibility(false); // hidden until revealed
+					TextComp->SetVisibility(false); //hidden until revealed
 
 					FString Symbol;
 					if (Count == -1)
@@ -243,7 +234,7 @@ void UTile_AC::BeginPlay()
 					}
 					else if (Count == -2)
 					{
-						Symbol = TEXT("-"); // starting tile
+						Symbol = TEXT("-"); //starting tile
 					}
 					else if (Count == 0)
 					{
@@ -264,7 +255,7 @@ void UTile_AC::BeginPlay()
 					{
 						ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
 					}
-					// Keep X/Y at 0 so centered alignment will position text in the middle of the tile.
+					//Keep X/Y at 0 so centered alignment will position text in the middle of the tile.
 					TextComp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
 					TextComp->SetRelativeScale3D(FVector(TextUniformScale));
 
@@ -276,13 +267,9 @@ void UTile_AC::BeginPlay()
 	}
 }
 
-
-// Called every frame
 void UTile_AC::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
 }
 
 
@@ -295,7 +282,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// create or reuse a Text3D component attached to the owner actor, keep it hidden until reveal
+	//Create or reuse a Text3D component attached to the owner actor, keep it hidden until reveal
 	UText3DComponent* Comp = Owner->FindComponentByClass<UText3DComponent>();
 	if (!Comp)
 	{
@@ -317,7 +304,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->CreationMethod = EComponentCreationMethod::Instance;
 
-		// Ensure text is centered for this tile
+		//Ensure text is centered for this tile
 		Comp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 		Comp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
 
@@ -325,7 +312,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 		Comp->InitializeComponent();
 	}
 
-	// Prepare the text but keep it hidden by default
+	//Prepare the text but keep it hidden by default
 	FString Symbol;
 	if (AdjacentCount == -1)
 	{
@@ -333,7 +320,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 	}
 	else if (AdjacentCount == -2)
 	{
-		Symbol = TEXT("-"); // starting tile
+		Symbol = TEXT("-"); //starting tile
 	}
 	else if (AdjacentCount == 0)
 	{
@@ -354,7 +341,7 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 	{
 		ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
 	}
-	// Keep XY zero — alignment above centers the mesh over actor origin.
+	//Keep XY zero — alignment above centers the mesh over actor origin.
 	Comp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
 	Comp->SetRelativeScale3D(FVector(InTextUniformScale));
 	Comp->SetVisibility(false); // hide until revealed
@@ -367,28 +354,28 @@ bool UTile_AC::Reveal()
 {
 	if (bRevealed)
 	{
-		return bIsMine; // already revealed, return mine-state
+		return bIsMine; //already revealed, return mine-state
 	}
 
 	bRevealed = true;
 
-	// ensure the visual is shown
+	//ensure the visual is shown
 	if (!RuntimeTextComp)
 	{
-		// try to find/create one now
+		//try to find/create one now
 		AActor* Owner = GetOwner();
 		if (Owner)
 		{
 			RuntimeTextComp = Owner->FindComponentByClass<UText3DComponent>();
 			if (!RuntimeTextComp)
 			{
-				// create minimal text component so player sees something
+				//create minimal text component so player sees something
 				RuntimeTextComp = NewObject<UText3DComponent>(Owner, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
 				if (RuntimeTextComp)
 				{
 					Owner->AddInstanceComponent(RuntimeTextComp);
 
-					// center alignment for any ad-hoc runtime text
+					//center alignment for any ad-hoc runtime text
 					RuntimeTextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 					RuntimeTextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
 
@@ -402,14 +389,14 @@ bool UTile_AC::Reveal()
 	if (RuntimeTextComp)
 	{
 		RuntimeTextComp->SetVisibility(true);
-		// optionally change color to highlight mine
+		//optionally change color to highlight mine
 		//if (bIsMine)
 		//{
-		//	RuntimeTextComp->SetTextMaterial(RuntimeTextComp->GetTextMaterial()); // no-op placeholder
+		//RuntimeTextComp->SetTextMaterial(RuntimeTextComp->GetTextMaterial()); // no-op placeholder
 		//}
 	}
 
-	// Return whether this reveal hit a mine
+	//Return whether this reveal hit a mine
 	return bIsMine;
 }
 
