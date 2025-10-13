@@ -1,3 +1,5 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
 
 #include "Tile_AC.h"
@@ -17,19 +19,20 @@
 #include "Mechanics_AC.generated.h"
 
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class GDENGGRP_API UMechanics_AC : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
-	//Sets default values for this component's properties
+public:
+	// Sets default values for this component's properties
 	UMechanics_AC();
 
 protected:
+	// Called when the game starts
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 

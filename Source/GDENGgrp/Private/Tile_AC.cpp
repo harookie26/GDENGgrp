@@ -1,3 +1,6 @@
+// Fill out your copyright notice in the Description page of Project Settings..
+
+
 #include "Tile_AC.h"
 
 #include "Components/PrimitiveComponent.h"
@@ -8,12 +11,14 @@
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
+// Sets default values for this component's properties
 UTile_AC::UTile_AC()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
 
+// Called when the game starts
 void UTile_AC::BeginPlay()
 {
 	Super::BeginPlay();
@@ -24,10 +29,8 @@ void UTile_AC::BeginPlay()
 		return;
 	}
 
-	//Only the origin actor (tagged) should run the spawning + grid setup.
 	if (bOnlySpawnIfOwnerHasTag && !Owner->ActorHasTag(SpawnOriginTag))
 	{
-		//Non-origin actors do nothing here (origin will set their visuals).
 		return;
 	}
 
@@ -43,13 +46,9 @@ void UTile_AC::BeginPlay()
 		return;
 	}
 
-	//Seed randomness
-	FMath::RandInit(static_cast<int32>(FDateTime::Now().GetMillisecond()));
-
 	const FVector Origin = Owner->GetActorLocation();
 	FRotator SpawnRotation = Owner->GetActorRotation();
 
-	//Determine effective spacing so tiles do not overlap.
 	float EffectiveSpacingX = Spacing;
 	float EffectiveSpacingY = Spacing;
 
@@ -66,28 +65,25 @@ void UTile_AC::BeginPlay()
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	//(owner at 0,0)
+	// Prepare container for all grid actors (owner at 0,0)
 	const int32 TotalCells = GridSizeX * GridSizeY;
 	TArray<AActor*> GridActors;
 	GridActors.SetNum(TotalCells);
 
-	//Map (X,Y) -> index: Index = X * GridSizeY + Y
 	auto IndexForXY = [&](int32 X, int32 Y) -> int32 { return X * GridSizeY + Y; };
 
-	//Place owner into the grid at (0,0)
 	if (TotalCells > 0)
 	{
 		GridActors[IndexForXY(0, 0)] = Owner;
 	}
 
-	//Spawn remaining cells and fill GridActors
 	for (int32 X = 0; X < GridSizeX; ++X)
 	{
 		for (int32 Y = 0; Y < GridSizeY; ++Y)
 		{
 			if (X == 0 && Y == 0)
 			{
-				continue; // owner already placed
+				continue;
 			}
 
 			const FVector SpawnLocation = Origin + FVector(X * EffectiveSpacingX, Y * EffectiveSpacingY, 0.f);
@@ -98,46 +94,33 @@ void UTile_AC::BeginPlay()
 			}
 			else
 			{
-				//If spawn failed, leave nullptr. Continue — origin will still attempt to render for valid actors.
+				// If spawn failed, leave nullptr.
 				GridActors[IndexForXY(X, Y)] = nullptr;
 			}
 		}
 	}
-
-	// --- Mines + starting tile setup ---
-	// Requirements:
-	// - Exactly 4 mines (or as many as fits, leaving at least one tile for the starting tile).
-	// - The starting tile is at (0,0) (the owner) and is designated with "-" (we represent that with AdjacentCount == -2).
-	// - Starting tile must NOT be a mine.
-	//
-	// Ensure we have at least one cell, otherwise nothing to do.
 
 	if (TotalCells == 0)
 	{
 		return;
 	}
 
-	//Reserve the origin (0,0) as the starting tile.
 	const int32 StartIndex = IndexForXY(0, 0);
 
-	//Determine desired number of mines: exactly 4, but ensure we leave at least one non-mine for the start tile.
 	int32 DesiredMines = FMath::Clamp(4, 0, TotalCells > 1 ? TotalCells - 1 : 0);
-	//Keep the NumMines member in sync (optional).
 	NumMines = DesiredMines;
 
-	//Place DesiredMines unique mines randomly among TotalCells, excluding the starting index.
 	TSet<int32> MineIndices;
 	while (MineIndices.Num() < DesiredMines)
 	{
 		int32 Pick = FMath::RandRange(0, TotalCells - 1);
 		if (Pick == StartIndex)
 		{
-			continue; //never place a mine on the starting tile
+			continue;
 		}
 		MineIndices.Add(Pick);
 	}
 
-	//Compute adjacent mine counts for each cell
 	TArray<int32> AdjacentCounts;
 	AdjacentCounts.Init(0, TotalCells);
 
@@ -148,7 +131,7 @@ void UTile_AC::BeginPlay()
 			int32 Idx = IndexForXY(X, Y);
 			if (MineIndices.Contains(Idx))
 			{
-				AdjacentCounts[Idx] = -1; //-1 = mine
+				AdjacentCounts[Idx] = -1;
 				continue;
 			}
 
@@ -174,38 +157,26 @@ void UTile_AC::BeginPlay()
 		}
 	}
 
-	//Designate the start tile with a special value -2 (dash "-")
-	if (StartIndex >= 0 && StartIndex < TotalCells)
-	{
-		AdjacentCounts[StartIndex] = -2; // -2 = starting tile, displayed as "-"
-		//ensure start tile is not marked as a mine (shouldn't be, since we excluded it above)
-		MineIndices.Remove(StartIndex);
-	}
+	MineIndices.Remove(StartIndex);
 
-	//Initialize each spawned actor's own UTile_AC with its tile data.
 	for (int32 X = 0; X < GridSizeX; ++X)
 	{
 		for (int32 Y = 0; Y < GridSizeY; ++Y)
 		{
 			int32 Idx = IndexForXY(X, Y);
 			AActor* CellActor = GridActors[Idx];
-			if (!CellActor)
-			{
-				continue;
-			}
 
 			UTile_AC* TileComp = CellActor->FindComponentByClass<UTile_AC>();
 			bool bMine = MineIndices.Contains(Idx);
 			int32 Count = AdjacentCounts[Idx];
+			bool bStart = (Idx == StartIndex);
 
 			if (TileComp)
 			{
-				TileComp->InitializeTile(Count, bMine, TextUniformScale);
+				TileComp->InitializeTile(Count, bMine, TextUniformScale, bStart);
 			}
 			else
 			{
-				//Fallback: if actor doesn't have a tile component, create a text component directly and hide it initially.
-				//This should be rare because spawned actors should include this component.
 				UText3DComponent* TextComp = NewObject<UText3DComponent>(CellActor, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
 				if (TextComp)
 				{
@@ -214,31 +185,21 @@ void UTile_AC::BeginPlay()
 					if (!Root)
 					{
 						CellActor->SetRootComponent(TextComp);
-						TextComp->SetRelativeLocation(FVector::ZeroVector);
 					}
 					else
 					{
 						TextComp->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
 					}
 
-					//Ensure text is centered within the tile
 					TextComp->SetMobility(EComponentMobility::Movable);
 					TextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 					TextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
-					TextComp->SetVisibility(false); //hidden until revealed
+					TextComp->SetVisibility(false);
 
 					FString Symbol;
 					if (Count == -1)
 					{
 						Symbol = TEXT("X");
-					}
-					else if (Count == -2)
-					{
-						Symbol = TEXT("-"); //starting tile
-					}
-					else if (Count == 0)
-					{
-						Symbol = TEXT("_");
 					}
 					else
 					{
@@ -250,13 +211,30 @@ void UTile_AC::BeginPlay()
 					TextComp->SetBevel(0.0f);
 					TextComp->SetCastShadow(false);
 
-					float ZOffset = 50.f;
+					FVector DesiredWorldTop = FVector::ZeroVector;
 					if (UStaticMeshComponent* MeshComp = CellActor->FindComponentByClass<UStaticMeshComponent>())
 					{
-						ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
+						const FVector MeshWorldCenter = MeshComp->Bounds.Origin;
+						const float MeshTopZ = MeshWorldCenter.Z + MeshComp->Bounds.BoxExtent.Z + 10.f;
+						DesiredWorldTop = FVector(MeshWorldCenter.X, MeshWorldCenter.Y, MeshTopZ);
 					}
-					//Keep X/Y at 0 so centered alignment will position text in the middle of the tile.
-					TextComp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
+					else
+					{
+						DesiredWorldTop = CellActor->GetActorLocation() + FVector(0.f, 0.f, 50.f);
+					}
+
+					FVector LocalTop = FVector::ZeroVector;
+					USceneComponent* TargetRoot = CellActor->GetRootComponent();
+					if (TargetRoot)
+					{
+						LocalTop = TargetRoot->GetComponentTransform().InverseTransformPosition(DesiredWorldTop);
+					}
+					else
+					{
+						LocalTop = CellActor->GetActorTransform().InverseTransformPosition(DesiredWorldTop);
+					}
+
+					TextComp->SetRelativeLocation(LocalTop);
 					TextComp->SetRelativeScale3D(FVector(TextUniformScale));
 
 					TextComp->RegisterComponent();
@@ -267,34 +245,41 @@ void UTile_AC::BeginPlay()
 	}
 }
 
+
+// Called every frame
 void UTile_AC::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
 
-void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTextUniformScale)
+void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTextUniformScale, bool bInIsStart)
 {
 	bIsMine = bInIsMine;
 	AdjacentCount = InAdjacentCount;
 	bRevealed = false;
+	bIsStart = bInIsStart;
 
 	AActor* Owner = GetOwner();
-	if (!Owner) return;
+	if (!Owner)
+	{
+		return;
+	}
 
-	//Create or reuse a Text3D component attached to the owner actor, keep it hidden until reveal
 	UText3DComponent* Comp = Owner->FindComponentByClass<UText3DComponent>();
 	if (!Comp)
 	{
 		Comp = NewObject<UText3DComponent>(Owner, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
-		if (!Comp) return;
+		if (!Comp)
+		{
+			return;
+		}
 
 		Owner->AddInstanceComponent(Comp);
 		USceneComponent* Root = Owner->GetRootComponent();
 		if (!Root)
 		{
 			Owner->SetRootComponent(Comp);
-			Comp->SetRelativeLocation(FVector::ZeroVector);
 		}
 		else
 		{
@@ -303,8 +288,6 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->CreationMethod = EComponentCreationMethod::Instance;
-
-		//Ensure text is centered for this tile
 		Comp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 		Comp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
 
@@ -312,19 +295,10 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 		Comp->InitializeComponent();
 	}
 
-	//Prepare the text but keep it hidden by default
 	FString Symbol;
 	if (AdjacentCount == -1)
 	{
 		Symbol = TEXT("X");
-	}
-	else if (AdjacentCount == -2)
-	{
-		Symbol = TEXT("-"); //starting tile
-	}
-	else if (AdjacentCount == 0)
-	{
-		Symbol = TEXT("_");
 	}
 	else
 	{
@@ -336,17 +310,30 @@ void UTile_AC::InitializeTile(int32 InAdjacentCount, bool bInIsMine, float InTex
 	Comp->SetBevel(0.0f);
 	Comp->SetCastShadow(false);
 
-	float ZOffset = 50.f;
+	FVector DesiredWorldTop = Owner->GetActorLocation() + FVector(0.f, 0.f, 50.f);
 	if (UStaticMeshComponent* MeshComp = Owner->FindComponentByClass<UStaticMeshComponent>())
 	{
-		ZOffset = MeshComp->Bounds.BoxExtent.Z * 2.0f + 10.f;
+		const FVector MeshWorldCenter = MeshComp->Bounds.Origin;
+		const float MeshTopZ = MeshWorldCenter.Z + MeshComp->Bounds.BoxExtent.Z + 10.f;
+		DesiredWorldTop = FVector(MeshWorldCenter.X, MeshWorldCenter.Y, MeshTopZ);
 	}
-	//Keep XY zero — alignment above centers the mesh over actor origin.
-	Comp->SetRelativeLocation(FVector(0.f, 0.f, ZOffset));
-	Comp->SetRelativeScale3D(FVector(InTextUniformScale));
-	Comp->SetVisibility(false); // hide until revealed
 
-	RuntimeTextComp = Comp;
+	FVector LocalTop = FVector::ZeroVector;
+	USceneComponent* Root = Owner->GetRootComponent();
+	if (Root)
+	{
+		LocalTop = Root->GetComponentTransform().InverseTransformPosition(DesiredWorldTop);
+	}
+	else
+	{
+		LocalTop = Owner->GetActorTransform().InverseTransformPosition(DesiredWorldTop);
+	}
+
+	Comp->SetRelativeLocation(LocalTop);
+	Comp->SetRelativeScale3D(FVector(InTextUniformScale));
+	Comp->SetVisibility(false);
+
+	this->RuntimeTextComp = Comp;
 }
 
 
@@ -354,30 +341,47 @@ bool UTile_AC::Reveal()
 {
 	if (bRevealed)
 	{
-		return bIsMine; //already revealed, return mine-state
+		return bIsMine;
 	}
 
 	bRevealed = true;
 
-	//ensure the visual is shown
 	if (!RuntimeTextComp)
 	{
-		//try to find/create one now
 		AActor* Owner = GetOwner();
 		if (Owner)
 		{
 			RuntimeTextComp = Owner->FindComponentByClass<UText3DComponent>();
 			if (!RuntimeTextComp)
 			{
-				//create minimal text component so player sees something
 				RuntimeTextComp = NewObject<UText3DComponent>(Owner, UText3DComponent::StaticClass(), NAME_None, RF_Transient);
 				if (RuntimeTextComp)
 				{
 					Owner->AddInstanceComponent(RuntimeTextComp);
 
-					//center alignment for any ad-hoc runtime text
 					RuntimeTextComp->SetHorizontalAlignment(EText3DHorizontalTextAlignment::Center);
 					RuntimeTextComp->SetVerticalAlignment(EText3DVerticalTextAlignment::Center);
+
+					// compute top-of-mesh in world space then transform into Owner root local
+					FVector DesiredWorldTop = Owner->GetActorLocation() + FVector(0.f, 0.f, 50.f);
+					if (UStaticMeshComponent* MeshComp = Owner->FindComponentByClass<UStaticMeshComponent>())
+					{
+						const FVector MeshWorldCenter = MeshComp->Bounds.Origin;
+						const float MeshTopZ = MeshWorldCenter.Z + MeshComp->Bounds.BoxExtent.Z + 10.f;
+						DesiredWorldTop = FVector(MeshWorldCenter.X, MeshWorldCenter.Y, MeshTopZ);
+					}
+
+					FVector LocalTop = FVector::ZeroVector;
+					USceneComponent* Root = Owner->GetRootComponent();
+					if (Root)
+					{
+						LocalTop = Root->GetComponentTransform().InverseTransformPosition(DesiredWorldTop);
+					}
+					else
+					{
+						LocalTop = Owner->GetActorTransform().InverseTransformPosition(DesiredWorldTop);
+					}
+					RuntimeTextComp->SetRelativeLocation(LocalTop);
 
 					RuntimeTextComp->RegisterComponent();
 					RuntimeTextComp->InitializeComponent();
@@ -389,14 +393,8 @@ bool UTile_AC::Reveal()
 	if (RuntimeTextComp)
 	{
 		RuntimeTextComp->SetVisibility(true);
-		//optionally change color to highlight mine
-		//if (bIsMine)
-		//{
-		//RuntimeTextComp->SetTextMaterial(RuntimeTextComp->GetTextMaterial()); // no-op placeholder
-		//}
 	}
 
-	//Return whether this reveal hit a mine
 	return bIsMine;
 }
 
